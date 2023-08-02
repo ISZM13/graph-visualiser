@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "MLTable": "yaml",
+        "fstream": "cpp"
+    },
+    "cmake.configureOnOpen": true
+}
