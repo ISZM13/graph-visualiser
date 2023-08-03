@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BFS & DFS Traversal</title>
+    <script src="https://cdn.anychart.com/releases/8.8.0/js/anychart-core.min.js"></script>
+    <script src="https://cdn.anychart.com/releases/8.8.0/js/anychart-graph.min.js"></script>
+    <script src="https://cdn.anychart.com/releases/8.8.0/js/anychart-data-adapter.min.js"></script>
+    <style type="text/css">
+        html,
+        body,
+        #container {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #networkGraph {
+            height: 600px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Dynamic Network Graph</h1>
+    <form id="graphForm" action="/submit-data" method="POST">
+        <label for="nodeLabel">Node Label:</label>
+        <input type="text" name="nodeLabel" id="nodeLabel" placeholder="Node Label">
+        <input type="submit" value="Add Node">
+        <hr>
+        <label for="fromNode">From Node:</label>
+        <select name="fromNode" id="fromNode">
+            <!-- Populate this dropdown with existing node IDs -->
+        </select>
+
+        <label for="toNode">To Node:</label>
+        <select name="toNode" id="toNode">
+            <!-- Populate this dropdown with existing node IDs -->
+        </select>
+        <input type="submit" value="Add Edge">
+    </form>
+
+    <!-- Add a new form for data submission -->
+    <form id="dataForm" action="/save-data" method="POST">
+        <!-- Include any additional input fields you want to submit with the graph data if needed -->
+        <input type="submit" value="Save Graph Data">
+    </form>
+
+    <div id="networkGraph"></div>
+
+    <!-- Include the required scripts -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <div id="container"></div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const graphData = {
+                nodes: [],
+                edges: [],
+            };
+            const container = document.getElementById("networkGraph");
+            const options = {};
+            const network = new vis.Network(container, graphData, options);
+
+            // Initialize the edgeVerticesArray to store the "from" and "to" vertices of each edge
+            const edgeVerticesArray = [];
+
+            // Form submission event handler for adding nodes
+            const graphForm = document.getElementById("graphForm");
+            graphForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+                const nodeLabelInput = document.getElementById("nodeLabel");
+                const nodeLabel = nodeLabelInput.value.trim();
+
+                if (nodeLabel !== "") {
+                    const newNode = { id: graphData.nodes.length + 1, label: nodeLabel };
+                    graphData.nodes.push(newNode);
+                    nodeLabelInput.value = "";
+                    network.setData(graphData);
+                    updateNodeDropdowns();
+                }
+            });
+
+            // Form submission event handler for adding edges
+            const edgeForm = document.getElementById("graphForm"); // Updated: Use the same form ID as graphForm
+            edgeForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+                const fromNodeSelect = document.getElementById("fromNode");
+                const toNodeSelect = document.getElementById("toNode");
+                const fromNodeId = parseInt(fromNodeSelect.value);
+                const toNodeId = parseInt(toNodeSelect.value);
+
+                if (!isNaN(fromNodeId) && !isNaN(toNodeId) && fromNodeId !== toNodeId) {
+                    const newEdge = { from: fromNodeId, to: toNodeId };
+                    graphData.edges.push(newEdge);
+                    network.setData(graphData);
+
+                    // Save the "from" and "to" vertices to the edgeVerticesArray
+                    edgeVerticesArray.push([fromNodeId, toNodeId]);
+                }
+            });
+
+            // Function to update the node dropdowns when new nodes are added
+            function updateNodeDropdowns() {
+                const fromNodeSelect = document.getElementById("fromNode");
+                const toNodeSelect = document.getElementById("toNode");
+
+                // Clear existing options
+                fromNodeSelect.innerHTML = "";
+                toNodeSelect.innerHTML = "";
+
+                // Populate the dropdowns with existing node IDs
+                graphData.nodes.forEach(node => {
+                    const option = document.createElement("option");
+                    option.value = node.id;
+                    option.textContent = node.label;
+                    fromNodeSelect.appendChild(option);
+
+                    const option2 = document.createElement("option");
+                    option2.value = node.id;
+                    option2.textContent = node.label;
+                    toNodeSelect.appendChild(option2);
+                });
+            }
+
+            // Function to handle data submission
+            function submitDataToServer() {
+                const dataForm = document.getElementById("dataForm");
+
+                dataForm.addEventListener("submit", (event) => {
+                    event.preventDefault();
+
+                    // Extract edges data from graphData
+                    const edgesData = graphData.edges.map((edge) => {
+                        return {
+                            from: edge.from,
+                            to: edge.to,
+                        };
+                    });
+
+                    // Combine nodes and edges data for submission
+                    const jsonData = {
+                        nodes: graphData.nodes,
+                        edges: edgesData,
+                    };
+
+                    // Send the data to the server using a POST request
+                    fetch("/save-data", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(jsonData),
+                    })
+                        .then((response) => response.json())
+                        .then((data) => {
+                            console.log(data.message);
+                            // Optionally, display a success message or perform other actions after data submission.
+                        })
+                        .catch((error) => {
+                            console.error("Error submitting data:", error);
+                            // Optionally, display an error message or perform other error handling.
+                        });
+                });
+            }
+
+            // Call the function to handle data submission
+            submitDataToServer();
+
+            // Call this function once to populate the dropdowns initially
+            updateNodeDropdowns();
+
+            // Function to convert the edgeVerticesArray to CSV format
+            function convertToCSV() {
+                let csvContent = "From,To\n"; // CSV header row
+
+                // Loop through each element in the edgeVerticesArray and add to CSV content
+                edgeVerticesArray.forEach((edge) => {
+                    const fromVertex = edge[0];
+                    const toVertex = edge[1];
+                    csvContent += `${fromVertex},${toVertex}\n`;
+                });
+
+                // Return the CSV content
+                return csvContent;
+            }
+
+            // Function to trigger download of the CSV file
+            function downloadCSV(csvContent) {
+                const blob = new Blob([csvContent], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "data.csv";
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            // Form submission event handler for saving graph data
+            const dataForm = document.getElementById("dataForm");
+            dataForm.addEventListener("submit", (event) => {
+                event.preventDefault();
+
+                // Convert edgeVerticesArray to CSV format
+                const csvContent = convertToCSV();
+
+                // Trigger download of the CSV file
+                downloadCSV(csvContent);
+            });
+
+        });
+
+
+    </script>
+</body>
+
+</html>
